@@ -82,7 +82,7 @@ app.post('/invoices', (req, res) => {
                             });
                         }
 
-                        const invoiceId = result.insertId; // Get the auto-generated ID for the invoice header
+                        const invoiceId = invoiceNo; // Use the invoice number for the invoice details
 
                         // Prepare data for inserting into invoice_details
                         const queryDetails = `
@@ -138,7 +138,7 @@ app.get('/sales-report', (req, res) => {
       id.description,
       id.amount
     FROM invoice_headers ih
-    LEFT JOIN invoice_details id ON ih.id = id.invoice_no
+    LEFT JOIN invoice_details id ON ih.invoice_no = id.invoice_no
     WHERE 1=1
     `;
 
@@ -184,8 +184,8 @@ app.get('/invoices/:invoiceId', (req, res) => {
             id.description,
             id.amount
         FROM invoice_headers ih
-        LEFT JOIN invoice_details id ON ih.id = id.invoice_no
-        WHERE ih.id = ?
+        LEFT JOIN invoice_details id ON ih.invoice_no = id.invoice_no
+        WHERE ih.invoice_no = ?
     `;
 
     pool.query(query, [invoiceId], (err, results) => {
