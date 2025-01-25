@@ -1,31 +1,27 @@
 const express = require('express');
-const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const mysql = require('mysql2');
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-
-// Database connection
-const db = mysql.createConnection({
+// Create a connection pool
+const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'merzona'
-});
-
-// Connect to database
-db.connect(err => {
-    if (err) throw err;
-    console.log('Database connected');
+    database: 'merzona',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
 // Get the latest invoice number
 app.get('/invoices/latest', (req, res) => {
     const query = 'SELECT invoice_no FROM invoice_headers ORDER BY id DESC LIMIT 1';
-    db.query(query, (err, results) => {
+    pool.query(query, (err, results) => {
         if (err) {
             return res.status(500).json({ error: 'Error fetching latest invoice number' });
         }
@@ -35,41 +31,96 @@ app.get('/invoices/latest', (req, res) => {
     });
 });
 
+// Create or update an invoice
 app.post('/invoices', (req, res) => {
     const { invoiceNo, customerName, date, terms, dueDate, jobNumber, itemDetails } = req.body;
 
-    // Insert into invoice_headers
-    const queryHeader = `
-        INSERT INTO invoice_headers (invoice_no, customer_name, date, terms, due_date, job_number)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `;
-
-    db.query(queryHeader, [invoiceNo, customerName, date, terms, dueDate, jobNumber], (err, result) => {
+    // Get a connection from the pool
+    pool.getConnection((err, connection) => {
         if (err) {
-            console.error('Error inserting invoice header:', err);
-            return res.status(500).json({ error: 'Error inserting invoice header' });
+            console.error('Error getting database connection:', err);
+            return res.status(500).json({ error: 'Error getting database connection' });
         }
 
-        const invoiceId = result.insertId; // Get the auto-generated ID for the invoice header
-
-        // Insert details
-        const queryDetails = `
-            INSERT INTO invoice_details (invoice_no, description, amount)
-            VALUES ?
-        `;
-        const detailsData = itemDetails.map(item => [invoiceId, item.description, parseFloat(item.amount)]);
-
-        db.query(queryDetails, [detailsData], err => {
+        // Start a transaction
+        connection.beginTransaction(err => {
             if (err) {
-                console.error('Error inserting invoice details:', err);
-                return res.status(500).json({ error: 'Error inserting invoice details' });
+                console.error('Error starting transaction:', err);
+                return res.status(500).json({ error: 'Error starting transaction' });
             }
 
-            res.status(200).json({ message: 'Invoice created successfully' });
+            // Delete existing records in invoice_details based on invoice_no
+            const deleteDetailsQuery = `DELETE FROM invoice_details WHERE invoice_no = ?`;
+            connection.query(deleteDetailsQuery, [invoiceNo], (err) => {
+                if (err) {
+                    return connection.rollback(() => {
+                        console.error('Error deleting invoice details:', err);
+                        res.status(500).json({ error: 'Error deleting invoice details' });
+                    });
+                }
+
+                // Delete existing records in invoice_headers based on invoice_no
+                const deleteHeaderQuery = `DELETE FROM invoice_headers WHERE invoice_no = ?`;
+                connection.query(deleteHeaderQuery, [invoiceNo], (err) => {
+                    if (err) {
+                        return connection.rollback(() => {
+                            console.error('Error deleting invoice header:', err);
+                            res.status(500).json({ error: 'Error deleting invoice header' });
+                        });
+                    }
+
+                    // Insert new record into invoice_headers
+                    const queryHeader = `
+                        INSERT INTO invoice_headers (invoice_no, customer_name, date, terms, due_date, job_number)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    `;
+                    connection.query(queryHeader, [invoiceNo, customerName, date, terms, dueDate, jobNumber], (err, result) => {
+                        if (err) {
+                            return connection.rollback(() => {
+                                console.error('Error inserting invoice header:', err);
+                                res.status(500).json({ error: 'Error inserting invoice header' });
+                            });
+                        }
+
+                        const invoiceId = result.insertId; // Get the auto-generated ID for the invoice header
+
+                        // Prepare data for inserting into invoice_details
+                        const queryDetails = `
+                            INSERT INTO invoice_details (invoice_no, description, amount)
+                            VALUES ?
+                        `;
+                        const detailsData = itemDetails.map(item => [invoiceId, item.description, parseFloat(item.amount)]);
+
+                        // Insert new records into invoice_details
+                        connection.query(queryDetails, [detailsData], err => {
+                            if (err) {
+                                return connection.rollback(() => {
+                                    console.error('Error inserting invoice details:', err);
+                                    res.status(500).json({ error: 'Error inserting invoice details' });
+                                });
+                            }
+
+                            // Commit the transaction
+                            connection.commit(err => {
+                                if (err) {
+                                    return connection.rollback(() => {
+                                        console.error('Error committing transaction:', err);
+                                        res.status(500).json({ error: 'Error committing transaction' });
+                                    });
+                                }
+
+                                // Respond with success message
+                                res.status(200).json({ message: 'Invoice created successfully' });
+                            });
+                        });
+                    });
+                });
+            });
         });
     });
 });
 
+// Get sales report
 app.get('/sales-report', (req, res) => {
     const { fromDate, toDate } = req.query;
 
@@ -106,7 +157,7 @@ app.get('/sales-report', (req, res) => {
     query += ` ORDER BY id.id DESC`;
 
     // Execute the query
-    db.query(query, params, (err, results) => {
+    pool.query(query, params, (err, results) => {
         if (err) {
             console.error('Error fetching data:', err.message);
             res.status(500).send('Internal Server Error');
@@ -116,10 +167,10 @@ app.get('/sales-report', (req, res) => {
     });
 });
 
+// Get invoice details by invoice ID
 app.get('/invoices/:invoiceId', (req, res) => {
     const { invoiceId } = req.params;
 
-    // Query to fetch the invoice header and details
     const query = `
         SELECT 
             ih.id AS invoice_id,
@@ -137,19 +188,17 @@ app.get('/invoices/:invoiceId', (req, res) => {
         WHERE ih.id = ?
     `;
 
-    db.query(query, [invoiceId], (err, results) => {
+    pool.query(query, [invoiceId], (err, results) => {
         if (err) {
-            console.error('Error fetching invoice:', err);
-            return res.status(500).json({ error: 'Error fetching invoice' });
+            console.error('Error fetching invoice details:', err);
+            return res.status(500).json({ error: 'Error fetching invoice details' });
         }
 
         if (results.length === 0) {
             return res.status(404).json({ error: 'Invoice not found' });
         }
 
-        // Group results into a structured object
         const invoice = {
-            invoiceId: results[0].invoice_id,
             invoiceNo: results[0].invoice_no,
             customerName: results[0].customer_name,
             date: results[0].date,
@@ -163,12 +212,11 @@ app.get('/invoices/:invoiceId', (req, res) => {
             }))
         };
 
-        res.status(200).json(invoice);
+        res.json(invoice);
     });
 });
 
-
-// Start the server
-app.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
