@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Entry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  
+</head>
+
+
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Sales App</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="index.html">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="sales.html">Invoices</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="reports.html">Reports</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    .container {
+        max-width: 90%;
+        margin: 0 auto;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .description-col {
+        width: 70%;
+    }
+</style>
+<body>
+
+    <div class="container">
+        <h2>Sales Entry</h2>
+
+        <div class="form-row">
+          
+            <div class="col-md-3">
+                <label for="invoiceNo">Invoice No:</label>
+                <input type="text" class="form-control" id="invoiceNo" name="invoiceNo" readonly>
+            </div>
+            <div class="col-md-3">
+                <label for="date">Date:</label>
+                <input type="date" class="form-control" id="date" name="date" required>
+            </div>
+            <div class="col-md-6">
+                <label for="customerName">Customer Name:</label>
+                <input type="text" class="form-control" id="customerName" name="customerName" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+
+            <div class="col-md-6">
+                <label for="terms">Terms:</label>
+                <input type="text" class="form-control" id="terms" name="terms" required>
+            </div>
+            <div class="col-md-3">
+                <label for="dueDate">Due Date:</label>
+                <input type="date" class="form-control" id="dueDate" name="dueDate" required>
+            </div>
+            <div class="col-md-3">
+                <label for="jobNumber">Job Number:</label>
+                <input type="text" class="form-control" id="jobNumber" name="jobNumber">
+            </div>
+        </div>
+
+        <h3>Item Details</h3>
+        <div class="table-responsive">
+            <table id="itemDetailsTable" class="table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th class="description-col">Description</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><button class="btn btn-danger btn-sm delete">Delete</button></td>
+                        <td class="description-col"><input type="text" class="form-control"></td>
+                        <td><input type="number" class="form-control amount"></td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2"></td>
+                        <td><button class="btn btn-primary btn-sm" onclick="addRow()">Add Row</button></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="form-row">
+
+            <div class="col-md-3">
+                <label for="totalAmount">Total Amount:</label>
+                <input type="text" class="form-control" id="totalAmount" name="totalAmount" readonly>
+            </div>
+
+            <div class="col-md-3">
+                <label for="vatAmount">VAT Amount (5%):</label>
+                <input type="text" class="form-control" id="vatAmount" name="vatAmount" readonly>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-success" id="saveButton" onclick="saveSalesData()">Save</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Placeholder for fetching invoice number from backend API
+        function fetchInvoiceNumber() {
+            fetch('http://localhost:3000/invoices/latest')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("invoiceNo").value = data.invoiceNo;
+                })
+                .catch(error => {
+                    console.error('Error fetching invoice number:', error);
+                });
+        }
+
+        fetchInvoiceNumber();
+
+        function addRow() {
+            // Get the last row in the table
+            const lastRow = document.querySelector('#itemDetailsTable tbody tr:last-child');
+
+            // Check if the previous row has empty description or amount
+            if (lastRow) {
+                const lastRowDescription = lastRow.querySelector('.form-control').value;
+                const lastRowAmount = lastRow.querySelector('.amount').value;
+
+                if (lastRowDescription === '' || lastRowAmount === '') {
+                    alert("Please fill the details in the current row before adding a new one.");
+                    return; // Prevent adding the new row
+                }
+            }
+
+            const tableBody = document.getElementById("itemDetailsTable").getElementsByTagName('tbody')[0];
+            const newRow = tableBody.insertRow();
+
+            const cell1 = newRow.insertCell(0);
+            const cell2 = newRow.insertCell(1);
+            const cell3 = newRow.insertCell(2);
+
+            cell1.innerHTML = '<input type="text" class="form-control">';
+            cell2.innerHTML = '<input type="number" class="form-control amount">';
+            cell2.querySelector('.amount').addEventListener('blur', calculateTotalAmount);
+            cell3.innerHTML = '<button class="btn btn-danger btn-sm delete">Delete</button>';
+
+            cell3.querySelector('.delete').addEventListener('click', function () {
+                this.parentNode.parentNode.remove();
+                calculateTotalAmount();
+            });
+
+            calculateTotalAmount();
+        }
+
+        function calculateTotalAmount() {
+            const amountInputs = document.querySelectorAll('.amount');
+            let total = 0;
+
+            amountInputs.forEach(input => {
+                const amount = parseFloat(input.value) || 0;
+                total += amount;
+            });
+
+            document.getElementById("totalAmount").value = total.toFixed(2);
+            const vatAmount = (total * 0.05).toFixed(2);
+            document.getElementById("vatAmount").value = vatAmount;
+        }
+
+        // Initial calculation
+        calculateTotalAmount();
+
+
+
+        function validateForm() {
+            const requiredFields = document.querySelectorAll('input[required]');
+            for (const field of requiredFields) {
+                if (!field.value) {
+                    alert('Please fill in all required fields.');
+                    field.focus();
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function saveSalesData() {
+            // Check if any required header fields are empty
+            const requiredFields = document.querySelectorAll('input[required]');
+            for (const field of requiredFields) {
+                if (!field.value) {
+                    alert('Please fill in all required header fields.');
+                    field.focus();
+                    return false;
+                }
+            }
+
+            // Check if any item detail row is empty
+            const rows = document.querySelectorAll('#itemDetailsTable tbody tr');
+            for (let i = 0; i < rows.length; i++) {
+                const description = rows[i].querySelector('.form-control:first-child').value;
+                const amount = rows[i].querySelector('.amount').value;
+                if (description === '' || amount === '') {
+                    alert('Please fill in all item details.');
+                    return false;
+                }
+            }
+
+            // If all validations pass, proceed with saving data
+            const customerName = document.getElementById("customerName").value;
+            const invoiceNo = document.getElementById("invoiceNo").value;
+            const date = document.getElementById("date").value;
+            const terms = document.getElementById("terms").value;
+            const dueDate = document.getElementById("dueDate").value;
+            const jobNumber = document.getElementById("jobNumber").value;
+
+            const itemDetails = [];
+            rows.forEach(row => {
+                const description = row.querySelector('.form-control:first-child').value;
+                const amount = row.querySelector('.amount').value;
+                itemDetails.push({ description, amount });
+            });
+
+            const requestBody = {
+                customerName,
+                invoiceNo,
+                date,
+                terms,
+                dueDate,
+                jobNumber,
+                itemDetails
+            };
+
+            // Placeholder: Send requestBody to the API
+            fetch('http://localhost:3000/invoices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            })
+                .then(response => {
+                    if (response.ok) {
+                        // Handle successful response (e.g., show success message)
+                        alert('Sales data saved successfully!');
+                        // Clear form fields
+                        document.getElementById("customerName").value = "";
+                        document.getElementById("date").value = "";
+                        document.getElementById("terms").value = "";
+                        document.getElementById("dueDate").value = "";
+                        document.getElementById("jobNumber").value = "";
+
+                        // Clear item details table
+                        const tableBody = document.getElementById("itemDetailsTable").getElementsByTagName('tbody')[0];
+                        tableBody.innerHTML = "";
+
+                        // Add a default empty row
+                        addRow();
+
+                        // Recalculate totals
+                        calculateTotalAmount();
+
+                        // Refocus on the customer name field
+                    } else {
+                        // Handle error (e.g., display error message)
+                        alert('Failed to save sales data.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving sales data:', error);
+                    alert('An error occurred while saving sales data.');
+                });
+        }
+
+        document.querySelector('#itemDetailsTable tbody tr:first-child .amount').addEventListener('blur', calculateTotalAmount);
+        // Get today's date in the format "YYYY-MM-DD"
+        const today = new Date().toISOString().split('T')[0];
+
+
+        // Set the default value of the date input field
+        document.getElementById('date').value = today; 
+        document.getElementById('dueDate').value = today; 
+
+
+</script>
+
+</body>
+
+</html>
