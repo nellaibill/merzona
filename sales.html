@@ -7,34 +7,35 @@
     <title>Sales Entry</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  
+
 </head>
 
 
-  <!-- Navigation Bar -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<!-- Navigation Bar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">Sales App</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item">
-            <a class="nav-link active" href="index.html">Home</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="sales.html">Invoices</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="reports.html">Reports</a>
-          </li>
-        </ul>
-      </div>
+        <a class="navbar-brand" href="#">Sales App</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link active" href="index.html">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="sales.html">Invoices</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="reports.html">Reports</a>
+                </li>
+            </ul>
+        </div>
     </div>
-  </nav>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <style>
+</nav>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<style>
     .container {
         max-width: 90%;
         margin: 0 auto;
@@ -48,13 +49,14 @@
         width: 70%;
     }
 </style>
+
 <body>
 
     <div class="container">
         <h2>Sales Entry</h2>
 
         <div class="form-row">
-          
+
             <div class="col-md-3">
                 <label for="invoiceNo">Invoice No:</label>
                 <input type="text" class="form-control" id="invoiceNo" name="invoiceNo" readonly>
@@ -144,7 +146,53 @@
                 });
         }
 
-        fetchInvoiceNumber();
+        const urlParams = new URLSearchParams(window.location.search);
+        const invoiceId = urlParams.get('invoiceId');
+        if (invoiceId) {
+            fetchInvoiceDetails(invoiceId);
+        } else {
+            fetchInvoiceNumber();
+        }
+
+        
+        function fetchInvoiceDetails(invoiceId) {
+            fetch(`http://localhost:3000/invoices/${invoiceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("invoiceNo").value = data.invoiceNo;
+                    document.getElementById("date").value = data.date;
+                    document.getElementById("customerName").value = data.customerName;
+                    document.getElementById("terms").value = data.terms;
+                    document.getElementById("dueDate").value = data.dueDate;
+                    document.getElementById("jobNumber").value = data.jobNumber;
+
+                    const tableBody = document.getElementById("itemDetailsTable").getElementsByTagName('tbody')[0];
+                    tableBody.innerHTML = ""; // Clear existing rows
+
+                    data.details.forEach(detail => {
+                        const newRow = tableBody.insertRow();
+                        const cell1 = newRow.insertCell(0);
+                        const cell2 = newRow.insertCell(1);
+                        const cell3 = newRow.insertCell(2);
+
+                        cell1.innerHTML = '<button class="btn btn-danger btn-sm delete">Delete</button>';
+                        cell2.innerHTML = `<input type="text" class="form-control" value="${detail.description}">`;
+                        cell3.innerHTML = `<input type="number" class="form-control amount" value="${detail.amount}">`;
+
+                        cell1.querySelector('.delete').addEventListener('click', function () {
+                            this.parentNode.parentNode.remove();
+                            calculateTotalAmount();
+                        });
+
+                        cell3.querySelector('.amount').addEventListener('blur', calculateTotalAmount);
+                    });
+
+                    calculateTotalAmount();
+                })
+                .catch(error => {
+                    console.error('Error fetching invoice details:', error);
+                });
+        }
 
         function addRow() {
             // Get the last row in the table
@@ -168,12 +216,13 @@
             const cell2 = newRow.insertCell(1);
             const cell3 = newRow.insertCell(2);
 
-            cell1.innerHTML = '<input type="text" class="form-control">';
-            cell2.innerHTML = '<input type="number" class="form-control amount">';
-            cell2.querySelector('.amount').addEventListener('blur', calculateTotalAmount);
-            cell3.innerHTML = '<button class="btn btn-danger btn-sm delete">Delete</button>';
+            cell1.innerHTML = '<button class="btn btn-danger btn-sm delete">Delete</button>';
 
-            cell3.querySelector('.delete').addEventListener('click', function () {
+            cell2.innerHTML = '<input type="text" class="form-control">';
+            cell3.innerHTML = '<input type="number" class="form-control amount">';
+            cell3.querySelector('.amount').addEventListener('blur', calculateTotalAmount);
+
+            cell1.querySelector('.delete').addEventListener('click', function () {
                 this.parentNode.parentNode.remove();
                 calculateTotalAmount();
             });
@@ -197,8 +246,6 @@
 
         // Initial calculation
         calculateTotalAmount();
-
-
 
         function validateForm() {
             const requiredFields = document.querySelectorAll('input[required]');
@@ -301,16 +348,18 @@
         }
 
         document.querySelector('#itemDetailsTable tbody tr:first-child .amount').addEventListener('blur', calculateTotalAmount);
+        
+        
         // Get today's date in the format "YYYY-MM-DD"
         const today = new Date().toISOString().split('T')[0];
 
 
         // Set the default value of the date input field
-        document.getElementById('date').value = today; 
-        document.getElementById('dueDate').value = today; 
+        document.getElementById('date').value = today;
+        document.getElementById('dueDate').value = today;
 
 
-</script>
+    </script>
 
 </body>
 

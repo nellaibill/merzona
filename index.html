@@ -114,8 +114,7 @@
     }
 
     function editInvoice(invoiceNo) {
-      alert(`Edit functionality for Invoice No: ${invoiceNo} will be implemented.`);
-      // Redirect or open modal for editing
+      window.location.href = `sales.html?invoiceId=${invoiceNo}`;
     }
 
     function printInvoice(invoiceNo) {
@@ -124,6 +123,8 @@
     }
 
     fetchSalesReport();
+
   </script>
+
 </body>
 </html>
